@@ -203,12 +203,30 @@ dialog.sheet::backdrop { background: rgba(9,14,26,.48); }
 .emoji-grid button:hover { background: var(--card); }
 .choice { display: flex; gap: 12px; align-items: flex-start; border: 1.5px solid var(--line); border-radius: 14px; padding: 12px 14px; margin-top: 8px; cursor: pointer; }
 .choice:has(input:checked) { border-color: var(--ink); background: var(--paper); }
-.choice input { margin-top: 4px; width: 18px; height: 18px; accent-color: var(--ink); }
+.choice input { margin-top: 4px; width: 18px; height: 18px; accent-color: var(--ink); flex: none; }
+.field > label.choice { display: flex; margin-bottom: 0; font-weight: 400; font-size: inherit; }
 .choice b { display: block; }
 .choice span { color: var(--muted); font-size: 15px; }
 .name-pick { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .divider { border: 0; border-top: 1px solid var(--line); margin: 22px 0 6px; }
 .danger-zone { display: grid; gap: 8px; margin-top: 10px; }
+
+/* ☰ menu */
+.topbar .wordmark { margin-right: auto; }
+dialog.drawer { margin: 0 auto 0 0; height: 100%; max-height: 100%; width: min(86vw, 360px); border-radius: 0 24px 24px 0; }
+dialog.drawer[open] { animation: slidein .22s ease; }
+@keyframes slidein { from { transform: translateX(-40px); opacity: .4; } }
+@media (min-width: 640px) { dialog.drawer { margin: 0 auto 0 0; border-radius: 0 24px 24px 0; } }
+dialog.drawer .sheet-inner { max-height: 100%; height: 100%; }
+.drawer-item { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 8px; border: 0; background: none; border-radius: 12px; text-decoration: none; color: var(--ink); text-align: left; }
+.drawer-item:hover, .drawer-item.on { background: var(--soft); }
+.drawer-item .grow { flex: 1; min-width: 0; }
+.drawer-item b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.drawer-item small { display: block; color: var(--muted); font-size: 13px; }
+.drawer-dot { width: 38px; height: 38px; border-radius: 11px; background: var(--paper); border: 1.5px solid var(--line); display: grid; place-items: center; font-size: 19px; flex: none; }
+.code-chip { display: inline-flex; align-items: center; gap: 8px; margin: 12px 4px 0; padding: 6px 8px 6px 12px; border: 1.5px dashed var(--line); border-radius: 12px; background: var(--card); font-size: 14px; color: var(--muted); }
+.code-chip b { font: 800 17px var(--display); letter-spacing: .12em; color: var(--ink); }
+.code-chip button { border: 0; background: none; color: var(--focus); font-weight: 700; padding: 4px 6px; }
 
 /* Toast */
 .toast { position: fixed; left: 50%; bottom: calc(100px + env(safe-area-inset-bottom)); transform: translate(-50%, 20px); z-index: 50; background: var(--ink); color: var(--paper); border-radius: 14px; padding: 12px 14px 12px 16px; font-weight: 700; font-size: 15px; display: flex; align-items: center; gap: 14px; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; max-width: calc(100vw - 32px); width: max-content; }
@@ -228,20 +246,28 @@ dialog.sheet::backdrop { background: rgba(9,14,26,.48); }
 <script type="module">
 /* ─────────────────────────────────────────────────────────────
    SETUP
-   1. Paste your Firebase web config below (Firebase console →
-      Project settings → Your apps). Leave it null to try the app
-      in "this phone only" mode, saved in the browser.
-   2. HOUSEHOLD groups your family's trips in Firestore:
-      households/{HOUSEHOLD}/trips/{tripId}/items/{itemId}
+   FIREBASE_CONFIG connects the app to your Firebase project.
+   Set it to null to use "this phone only" mode instead.
+
+   Everyone signs in with a username and a 4-digit PIN. Behind the
+   scenes these are Firebase email/password accounts, so you can
+   see, disable or delete people in Firebase → Authentication → Users.
+   Each packing list has a 6-character Pack Code; people join a list
+   by entering its code, and only members can see a list.
    ───────────────────────────────────────────────────────────── */
-const FIREBASE_CONFIG = null;
-/* e.g.
 const FIREBASE_CONFIG = {
-  apiKey: "…", authDomain: "…", projectId: "…",
-  storageBucket: "…", messagingSenderId: "…", appId: "…"
+  apiKey: "AIzaSyCDDNE07_hpE2lYi0T5gMWCd90wLsbmB_E",
+  authDomain: "packapp-9c177.firebaseapp.com",
+  projectId: "packapp-9c177",
+  storageBucket: "packapp-9c177.firebasestorage.app",
+  messagingSenderId: "279359092069",
+  appId: "1:279359092069:web:248ff658d9f8f6ba339d8c"
 };
-*/
-const HOUSEHOLD = "our-family";
+const PIN_LENGTH = 4;
+// Usernames become sign-in emails on your Firebase domain (no email is ever sent)
+const USER_DOMAIN = "users.packapp-9c177.firebaseapp.com";
+// Firebase needs passwords of 6+ characters, so the PIN is padded with this
+const PIN_PREFIX = "tagalong-pin-";
 const FIREBASE_VERSION = "10.12.2";
 
 /* ── Constants ─────────────────────────────────────────────── */
@@ -368,6 +394,9 @@ const ICON = {
   up: '<svg class="ico" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></svg>',
   down: '<svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></svg>',
   trash: '<svg class="ico" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>',
+  menu: '<svg class="ico" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
+  key: '<svg class="ico" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M16 7l3 3M14 9l2 2"/></svg>',
+  copy: '<svg class="ico" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 012-2h9"/></svg>',
   mark: '<svg viewBox="0 0 30 22" aria-hidden="true"><path d="M9 1h18a2 2 0 012 2v16a2 2 0 01-2 2H9L1 14V8z" fill="#F7C531"/><circle cx="8.5" cy="11" r="2.4" fill="#13203A"/></svg>'
 };
 
@@ -424,61 +453,82 @@ function countdown(a, b) {
 }
 const isPast = (trip) => { const e = parseD(trip.end || trip.start); if (!e) return false; const t = new Date(); t.setHours(0,0,0,0); return e < t; };
 
-/* ── Data stores ───────────────────────────────────────────── */
-// Same interface for both: watchTrips, watchTrip, watchItems, createTrip, updateTrip,
-// deleteTrip, addItem, updateItem, deleteItem, setPacked, bulk.
+/* ── Data store (Firebase) ─────────────────────────────────── */
+// Firestore layout:
+//   lists/{listId}               trip details, members: [uid…], code: "K7QM4X"
+//   lists/{listId}/items/{id}    packing items
+//   codes/{CODE}                 { listId } so a Pack Code can find its list
+const FB_BASE = `https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}`;
+const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // no 0/O, 1/I/L
+const CODE_LENGTH = 6;
+const randChars = (n, chars) => { const a = new Uint32Array(n); crypto.getRandomValues(a); return [...a].map((x) => chars[x % chars.length]).join(""); };
+const newCode = () => randChars(CODE_LENGTH, CODE_CHARS);
+const newListId = () => "l_" + randChars(20, "abcdefghijklmnopqrstuvwxyz0123456789");
+const cleanCode = (s) => String(s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 
-function LocalStore() {
-  const KEY = "tagalong-data-v1";
-  const load = () => { try { return JSON.parse(lsGet(KEY)) || { trips: {} }; } catch (e) { return { trips: {} }; } };
-  let db = load();
-  const subs = new Set();
-  const bc = "BroadcastChannel" in window ? new BroadcastChannel("tagalong") : null;
-  const emit = () => subs.forEach((s) => s());
-  if (bc) bc.onmessage = () => { db = load(); emit(); };
-  const save = () => { lsSet(KEY, JSON.stringify(db)); if (bc) bc.postMessage(1); emit(); };
-  const clone = (o) => JSON.parse(JSON.stringify(o));
-  const sub = (fn) => { subs.add(fn); queueMicrotask(fn); return () => subs.delete(fn); };
-  const items = (t) => db.trips[t] ? db.trips[t].items : {};
-  return {
-    mode: "local",
-    watchTrips: (cb) => sub(() => cb(Object.entries(db.trips).map(([id, t]) => ({ id, ...clone(t.data) })), { fromCache: false })),
-    watchTrip: (id, cb) => sub(() => cb(db.trips[id] ? { id, ...clone(db.trips[id].data) } : null)),
-    watchItems: (id, cb) => sub(() => cb(Object.entries(items(id)).map(([iid, it]) => ({ id: iid, ...clone(it) })), {})),
-    async createTrip(id, data, list) { db.trips[id] = { data: clone(data), items: Object.fromEntries(list.map(([i, it]) => [i, clone(it)])) }; save(); },
-    async updateTrip(id, patch) { if (db.trips[id]) { Object.assign(db.trips[id].data, clone(patch)); save(); } },
-    async deleteTrip(id) { delete db.trips[id]; save(); },
-    async addItem(t, i, item) { if (db.trips[t]) { db.trips[t].items[i] = clone(item); save(); } },
-    async updateItem(t, i, patch) { const it = items(t)[i]; if (it) { Object.assign(it, clone(patch)); save(); } },
-    async deleteItem(t, i) { delete items(t)[i]; save(); },
-    async setPacked(t, i, key, by) { const it = items(t)[i]; if (!it) return; it.packed = it.packed || {}; if (by) it.packed[key] = by; else delete it.packed[key]; save(); },
-    async bulk(t, ops) { const all = items(t); for (const op of ops) { if (op.del) delete all[op.id]; else if (all[op.id]) Object.assign(all[op.id], clone(op.patch)); } save(); }
-  };
+// Starts Firebase and its sign-in service
+async function connectFirebase(config) {
+  const [{ initializeApp }, authMod] = await Promise.all([import(`${FB_BASE}/firebase-app.js`), import(`${FB_BASE}/firebase-auth.js`)]);
+  const app = initializeApp(config);
+  return { app, auth: authMod.getAuth(app), authMod };
 }
 
-async function FirebaseStore(config) {
-  const base = `https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}`;
-  const { initializeApp } = await import(`${base}/firebase-app.js`);
-  const fs = await import(`${base}/firebase-firestore.js`);
-  const app = initializeApp(config);
+async function FirebaseStore(app, uid) {
+  const fs = await import(`${FB_BASE}/firebase-firestore.js`);
   let db;
   try { db = fs.initializeFirestore(app, { localCache: fs.persistentLocalCache({ tabManager: fs.persistentMultipleTabManager() }) }); }
   catch (e) { db = fs.getFirestore(app); }
-  const tripsCol = fs.collection(db, "households", HOUSEHOLD, "trips");
-  const tripRef = (id) => fs.doc(tripsCol, id);
+  const listsCol = fs.collection(db, "lists");
+  const tripRef = (id) => fs.doc(listsCol, id);
+  const codeRef = (c) => fs.doc(db, "codes", c);
   const itemsCol = (id) => fs.collection(tripRef(id), "items");
   const itemRef = (t, i) => fs.doc(itemsCol(t), i);
+  // Small batches keep each write within Firestore's security-rule limits
   async function commit(ops) {
-    for (let i = 0; i < ops.length; i += 400) { const b = fs.writeBatch(db); ops.slice(i, i + 400).forEach((fn) => fn(b)); await b.commit(); }
+    for (let i = 0; i < ops.length; i += 10) { const b = fs.writeBatch(db); ops.slice(i, i + 10).forEach((fn) => fn(b)); await b.commit(); }
   }
+  const notFound = () => Object.assign(new Error("No list uses that Pack Code."), { code: "code-not-found" });
   return {
     mode: "cloud",
-    watchTrips: (cb, err) => fs.onSnapshot(tripsCol, { includeMetadataChanges: true }, (s) => cb(s.docs.map((d) => ({ id: d.id, ...d.data() })), { fromCache: s.metadata.fromCache }), err),
-    watchTrip: (id, cb, err) => fs.onSnapshot(tripRef(id), (d) => cb(d.exists() ? { id: d.id, ...d.data() } : null), err),
-    watchItems: (id, cb, err) => fs.onSnapshot(itemsCol(id), { includeMetadataChanges: true }, (s) => cb(s.docs.map((d) => ({ id: d.id, ...d.data() })), { pending: s.metadata.hasPendingWrites }), err),
-    createTrip: (id, data, list) => commit([(b) => b.set(tripRef(id), data), ...list.map(([i, it]) => (b) => b.set(itemRef(id, i), it))]),
+    watchTrips: (cb, err) => fs.onSnapshot(fs.query(listsCol, fs.where("members", "array-contains", uid)), { includeMetadataChanges: true },
+      (s) => cb(s.docs.map((d) => ({ id: d.id, ...d.data() })), { fromCache: s.metadata.fromCache }), err),
+    watchTrip: (id, cb, err) => fs.onSnapshot(tripRef(id), (d) => cb(d.exists() ? { id: d.id, ...d.data() } : null), (e) => {
+      if (e && e.code === "permission-denied") cb(null); else if (err) err(e);
+    }),
+    watchItems: (id, cb, err) => fs.onSnapshot(itemsCol(id), { includeMetadataChanges: true }, (s) => cb(s.docs.map((d) => ({ id: d.id, ...d.data() })), { pending: s.metadata.hasPendingWrites }), (e) => {
+      if (!(e && e.code === "permission-denied") && err) err(e);
+    }),
+    // Creates the list with a fresh Pack Code, then its items. Needs a connection.
+    async createTrip(id, data, list) {
+      let code;
+      for (let tries = 0; ; tries++) {
+        code = newCode();
+        try { await fs.setDoc(codeRef(code), { listId: id, createdBy: uid }); break; }
+        catch (e) { if (e.code !== "permission-denied" || tries >= 5) throw e; } // code already taken: try another
+      }
+      await fs.setDoc(tripRef(id), { ...data, code, members: [uid], createdBy: uid });
+      await commit(list.map(([i, it]) => (b) => b.set(itemRef(id, i), it)));
+      return code;
+    },
+    // Adds you to the list that owns this Pack Code and returns its id
+    async joinByCode(raw) {
+      const code = cleanCode(raw);
+      if (code.length !== CODE_LENGTH) throw notFound();
+      const c = await fs.getDoc(codeRef(code));
+      if (!c.exists()) throw notFound();
+      const listId = c.data().listId;
+      try { await fs.updateDoc(tripRef(listId), { members: fs.arrayUnion(uid), joinCode: code }); }
+      catch (e) { if (e.code === "not-found") throw notFound(); throw e; }
+      return listId;
+    },
+    leaveTrip: (id) => fs.updateDoc(tripRef(id), { members: fs.arrayRemove(uid) }),
     updateTrip: (id, patch) => fs.updateDoc(tripRef(id), patch),
-    async deleteTrip(id) { const s = await fs.getDocs(itemsCol(id)); await commit([...s.docs.map((d) => (b) => b.delete(d.ref)), (b) => b.delete(tripRef(id))]); },
+    async deleteTrip(id, code) {
+      const s = await fs.getDocs(itemsCol(id));
+      await commit(s.docs.map((d) => (b) => b.delete(d.ref)));
+      if (code) { try { await fs.deleteDoc(codeRef(code)); } catch (e) { console.error(e); } }
+      await fs.deleteDoc(tripRef(id));
+    },
     addItem: (t, i, item) => fs.setDoc(itemRef(t, i), item),
     updateItem: (t, i, patch) => fs.updateDoc(itemRef(t, i), patch),
     deleteItem: (t, i) => fs.deleteDoc(itemRef(t, i)),
@@ -489,7 +539,7 @@ async function FirebaseStore(config) {
 
 /* ── App state ─────────────────────────────────────────────── */
 const S = {
-  store: null, me: lsGet("tagalong-me") || "", trips: [], tripsReady: false,
+  store: null, fb: null, user: null, me: lsGet("tagalong-me") || "", trips: [], tripsReady: false,
   route: "home", tripId: null, trip: null, tripMissing: false, items: [], itemsReady: false, pending: false,
   filter: lsGet("tagalong-filter") || "all", tf: null, q: "", collapsed: {},
   justToggled: null, lastPct: null, unsub: [], askedMe: false, statsTimer: null
@@ -499,7 +549,120 @@ const write = (p) => Promise.resolve(p).catch(onErr); // fire-and-forget writes 
 function onErr(e) {
   console.error(e);
   const code = e && (e.code || e.message);
-  toast(code === "permission-denied" ? "Your Firestore rules blocked this. Check the rules for the households path." : `Couldn't sync: ${code}`);
+  toast(code === "permission-denied" ? "The database rules blocked this. Check the Firestore rules in Firebase." : `Couldn't sync: ${code}`);
+}
+
+/* ── Accounts: username + 4-digit PIN ──────────────────────── */
+const usernameOf = (user) => (user && user.email ? user.email.split("@")[0] : "");
+const niceName = (u) => u ? u[0].toUpperCase() + u.slice(1) : "";
+
+async function signOut() {
+  try { await S.fb.authMod.signOut(S.fb.auth); } catch (e) { console.error(e); }
+  location.reload();
+}
+
+const AUTH_MSGS = {
+  "auth/invalid-credential": "That username and PIN don't match. Try again.",
+  "auth/invalid-login-credentials": "That username and PIN don't match. Try again.",
+  "auth/wrong-password": "That PIN isn't right. Try again.",
+  "auth/user-not-found": "There's no one with that username yet. Tap \"New here? Create an account\" below.",
+  "auth/user-disabled": "This account has been turned off. Ask whoever set up the app.",
+  "auth/email-already-in-use": "That username is taken. Pick another, or sign in if it's yours.",
+  "auth/admin-restricted-operation": "New accounts are turned off right now. Ask whoever set up the app to turn them back on.",
+  "auth/operation-not-allowed": "Sign-in isn't turned on yet. In Firebase, go to Authentication → Sign-in method and enable Email/Password.",
+  "auth/too-many-requests": "Too many tries. Wait a few minutes, then try again.",
+  "auth/network-request-failed": "No internet connection. Check your signal and try again."
+};
+const authMsg = (e) => AUTH_MSGS[e && e.code] || `Couldn't sign in (${(e && (e.code || e.message)) || "unknown error"}). Try again.`;
+
+function renderSignIn(mode = "signin", errMsg = "") {
+  const { authMod, auth } = S.fb;
+  const creating = mode === "create";
+  const msg = h("div", { class: "notice", role: "alert", hidden: !errMsg }, errMsg);
+  const show = (t) => { msg.hidden = false; msg.textContent = t; msg.scrollIntoView({ block: "nearest" }); };
+
+  const user = h("input", { id: "a-user", autocomplete: "username", autocapitalize: "none", autocorrect: "off", spellcheck: "false", maxlength: "20",
+    placeholder: creating ? "e.g. tim" : "", value: creating ? "" : (lsGet("tagalong-username") || "") });
+  const pinStyle = "font:800 30px/1 var(--display);letter-spacing:.35em;text-align:center";
+  const pinField = (id, ac) => h("input", { id, type: "password", inputmode: "numeric", pattern: "[0-9]*", maxlength: String(PIN_LENGTH), autocomplete: ac,
+    placeholder: "•".repeat(PIN_LENGTH), style: pinStyle, oninput: (e) => { e.target.value = e.target.value.replace(/\D/g, "").slice(0, PIN_LENGTH); e.target.classList.remove("invalid"); } });
+  const pin = pinField("a-pin", creating ? "new-password" : "current-password");
+  const pin2 = creating ? pinField("a-pin2", "new-password") : null;
+  const go = h("button", { type: "submit", class: "btn yellow block" }, creating ? "Create account" : "Sign in");
+  const bad = (el, text) => { el.classList.add("invalid"); el.focus(); if (text) show(text); };
+
+  // New account: start a list, or join one with a Pack Code
+  const codeIn = codeInput("a-code");
+  const codeWrap = h("div", { style: "margin:8px 0 0 30px", hidden: true }, codeIn);
+  const choice = (v, title, sub, checked) => h("label", { class: "choice" },
+    h("input", { type: "radio", name: "first", value: v, checked, onchange: () => { codeWrap.hidden = v !== "join"; if (v === "join") codeIn.focus(); } }),
+    h("div", null, h("b", null, title), h("span", null, sub)));
+  const firstStep = creating ? h("div", { class: "field" }, h("span", { class: "label" }, "Then…"),
+    choice("new", "Start a new packing list", "You'll get a Pack Code to share with your family.", true),
+    choice("join", "I have a Pack Code", "Join a list someone already made."), codeWrap) : null;
+
+  const form = h("form", { class: "sheet", style: "background:none;box-shadow:none", onsubmit: async (ev) => {
+    ev.preventDefault();
+    msg.hidden = true;
+    const name = user.value.trim().toLowerCase();
+    if (!/^[a-z0-9][a-z0-9._-]{1,19}$/.test(name)) return bad(user, "Usernames are 2–20 letters or numbers, with no spaces.");
+    if (pin.value.length !== PIN_LENGTH) return bad(pin, `The PIN needs ${PIN_LENGTH} digits.`);
+    let after = null;
+    if (creating) {
+      if (pin2.value !== pin.value) return bad(pin2, "The two PINs don't match.");
+      const pick = form.querySelector("input[name=first]:checked").value;
+      if (pick === "join") {
+        const code = cleanCode(codeIn.value);
+        if (code.length !== CODE_LENGTH) return bad(codeIn, `Pack Codes have ${CODE_LENGTH} letters and numbers.`);
+        after = { action: "join", code };
+      } else after = { action: "new" };
+    }
+    go.disabled = true; go.textContent = creating ? "Creating…" : "Signing in…";
+    const email = `${name}@${USER_DOMAIN}`, password = PIN_PREFIX + pin.value;
+    try {
+      if (creating) {
+        const cred = await authMod.createUserWithEmailAndPassword(auth, email, password);
+        try { await authMod.updateProfile(cred.user, { displayName: niceName(name) }); } catch (e) { console.error(e); }
+        try { sessionStorage.setItem("tagalong-after", JSON.stringify(after)); } catch (e) {}
+      } else {
+        await authMod.signInWithEmailAndPassword(auth, email, password);
+      }
+      lsSet("tagalong-username", name);
+      lsSet("tagalong-me", null);
+      location.reload();
+    } catch (e) {
+      console.error(e);
+      go.disabled = false; go.textContent = creating ? "Create account" : "Sign in";
+      show(authMsg(e));
+    }
+  } },
+    field("Username", user, creating ? "Pick something short, like your first name." : null, "a-user"),
+    field(`${PIN_LENGTH}-digit PIN`, pin, null, "a-pin"),
+    creating ? field("Type the PIN again", pin2, null, "a-pin2") : null,
+    firstStep,
+    h("div", { style: "margin-top:18px" }, go));
+
+  const tabs = h("div", { class: "seg", role: "tablist", style: "margin:0 0 6px" },
+    h("button", { type: "button", role: "tab", class: creating ? "" : "on", "aria-selected": String(!creating), onclick: () => creating && renderSignIn("signin") }, "Sign in"),
+    h("button", { type: "button", role: "tab", class: creating ? "on" : "", "aria-selected": String(creating), onclick: () => !creating && renderSignIn("create") }, "Create account"));
+
+  put($app,
+    h("div", { class: "topbar" }, h("div", { class: "wordmark", html: ICON.mark + "<span>Tagalong</span>" })),
+    h("h1", { class: "page-title", style: "margin-bottom:10px" }, creating ? "New account" : "Welcome back"),
+    h("p", { style: "color:var(--muted);margin:0 0 16px" }, creating
+      ? "Make a username and a PIN you'll remember. This phone stays signed in afterward."
+      : "Sign in with your username and PIN. This phone stays signed in afterward."),
+    tabs, msg, form,
+    creating ? null : h("p", { style: "text-align:center;color:var(--muted);font-size:14px;margin:14px 0 0" }, "Forgot your PIN? Ask whoever set up the app to remove your account, then create it again."));
+  setTimeout(() => (user.value ? pin : user).focus(), 60);
+}
+
+// A text box for typing a Pack Code
+function codeInput(id) {
+  return h("input", { id, autocomplete: "off", autocapitalize: "characters", autocorrect: "off", spellcheck: "false", maxlength: String(CODE_LENGTH + 2),
+    placeholder: "e.g. K7QM4X", "aria-label": "Pack Code",
+    style: "font:800 26px/1 var(--display);letter-spacing:.25em;text-align:center;text-transform:uppercase",
+    oninput: (e) => { e.target.value = cleanCode(e.target.value).slice(0, CODE_LENGTH); e.target.classList.remove("invalid"); } });
 }
 
 let toastTimer;
@@ -526,15 +689,10 @@ function buildItems(rows, travelers, withNotes) {
 }
 const cleanCats = (cats) => cats.map(({ tripOnly, ...c }) => c);
 
-function seedFirstTrip() {
-  const id = "california-2026";
-  const data = {
-    to: "Tustin & Irvine", from: "Denver", start: "2026-11-23", end: "2026-11-28",
-    notes: "Highs 69–80°F, lows 46–56°F, little to no rain. Thanksgiving is Thursday.",
-    travelers: DEFAULT_TRAVELERS, categories: cleanCats(CATEGORIES), bags: BAGS, createdAt: Date.now()
-  };
-  write(S.store.createTrip(id, data, buildItems(SEED, DEFAULT_TRAVELERS, true)));
-}
+// The ready-made California list (offered when making a new list until the trip ends)
+const CALI = { to: "Tustin & Irvine", from: "Denver", start: "2026-11-23", end: "2026-11-28",
+  notes: "Highs 69–80°F, lows 46–56°F, little to no rain. Thanksgiving is Thursday." };
+const caliOffered = () => !isPast(CALI);
 
 /* ── Packing logic ─────────────────────────────────────────── */
 const traveler = (id) => (S.trip && S.trip.travelers || []).find((t) => t.id === id);
@@ -577,6 +735,10 @@ function tripProgress(trip) {
     h("div", { class: "line" }, h("span", null, `${st.packed} of ${st.total} packed`), h("span", null, `${Math.round(st.packed / st.total * 100)}%`)),
     h("div", { class: "bar" }, h("i", { style: `width:${st.packed / st.total * 100}%` })));
 }
+function menuBtn() {
+  return h("button", { type: "button", class: "icon-btn", "aria-label": "Menu: your lists", onclick: openDrawer, html: ICON.menu });
+}
+
 function renderHome() {
   if (S.route !== "home") return;
   const trips = [...S.trips].sort((a, b) => (a.start || "9").localeCompare(b.start || "9"));
@@ -586,15 +748,78 @@ function renderHome() {
     h("div", { class: "tag-to" }, t.to || "Untitled trip"),
     h("div", { class: "tag-when" }, h("span", null, fmtRange(t.start, t.end)), countdown(t.start, t.end) ? h("span", { class: "countdown" }, countdown(t.start, t.end)) : null),
     tripProgress(t));
-  put($app, 
-    h("div", { class: "topbar" }, h("div", { class: "wordmark", html: ICON.mark + "<span>Tagalong</span>" }), meChip()),
-    h("h1", { class: "page-title" }, "Trips"),
-    S.store.mode === "local" ? h("div", { class: "notice" }, h("b", null, "Trips are saved on this phone only. "), "To share them with your family, add your Firebase settings at the top of the file.") : null,
-    !S.tripsReady ? h("p", { class: "empty" }, "Loading trips…") : null,
+  const none = S.tripsReady && !trips.length;
+  put($app,
+    h("div", { class: "topbar" }, menuBtn(), h("div", { class: "wordmark", html: ICON.mark + "<span>Tagalong</span>" }), meChip()),
+    h("h1", { class: "page-title" }, "Your lists"),
+    !S.tripsReady ? h("p", { class: "empty" }, "Loading your lists…") : null,
+    none ? h("div", { class: "notice" }, h("b", null, "You don't have any lists yet. "), "Start a new one, or join your family's list with its Pack Code.") : null,
     upcoming.map(card),
-    S.tripsReady ? h("button", { type: "button", class: "new-trip", onclick: openNewTripSheet, html: ICON.plus + "<span>Plan a new trip</span>" }) : null,
+    S.tripsReady ? h("div", { style: "display:grid;gap:10px" },
+      h("button", { type: "button", class: "new-trip", onclick: openNewTripSheet, html: ICON.plus + "<span>Start a new list</span>" }),
+      h("button", { type: "button", class: "new-trip", style: "padding:16px;font-size:16px", onclick: () => openJoinSheet(), html: ICON.key + "<span>Join with a Pack Code</span>" })) : null,
     past.length ? [h("div", { class: "section-label" }, "Past trips"), past.map(card)] : null
   );
+}
+
+/* ── ☰ menu ────────────────────────────────────────────────── */
+function openDrawer() {
+  const dlg = h("dialog", { class: "sheet drawer", "aria-label": "Your lists" });
+  const close = () => { if (dlg.open) dlg.close(); };
+  const go = (fn) => () => { close(); fn(); };
+  const trips = [...S.trips].sort((a, b) => (a.start || "9").localeCompare(b.start || "9"));
+  const row = (t) => {
+    const st = t.stats, pct = st && st.total ? Math.round(st.packed / st.total * 100) : null;
+    return h("a", { class: "drawer-item" + (t.id === S.tripId ? " on" : ""), href: `#/trip/${t.id}`, onclick: close },
+      h("span", { class: "drawer-dot", "aria-hidden": "true" }, "🧳"),
+      h("span", { class: "grow" }, h("b", null, t.to || "Untitled trip"), h("small", null, [fmtRange(t.start, t.end), pct != null ? `${pct}% packed` : null].filter(Boolean).join(" · "))));
+  };
+  dlg.append(h("div", { class: "sheet-inner" },
+    h("div", { class: "sheet-head" }, h("h2", null, "Your lists"), h("button", { type: "button", class: "icon-btn", "aria-label": "Close menu", html: ICON.close, onclick: close })),
+    h("div", { class: "sheet-body" },
+      h("a", { class: "drawer-item", href: "#/", onclick: close }, h("span", { class: "drawer-dot", "aria-hidden": "true" }, "🏠"), h("span", { class: "grow" }, h("b", null, "All lists"))),
+      trips.length ? trips.map(row) : h("p", { style: "color:var(--muted)" }, "No lists yet."),
+      h("hr", { class: "divider" }),
+      h("button", { type: "button", class: "drawer-item", onclick: go(openNewTripSheet) }, h("span", { class: "drawer-dot", html: ICON.plus }), h("span", { class: "grow" }, h("b", null, "New list"))),
+      h("button", { type: "button", class: "drawer-item", onclick: go(() => openJoinSheet()) }, h("span", { class: "drawer-dot", html: ICON.key }), h("span", { class: "grow" }, h("b", null, "Join with a Pack Code"))),
+      h("hr", { class: "divider" }),
+      S.user ? h("p", { class: "help", style: "color:var(--muted);margin:4px 2px 8px" }, `Signed in as ${usernameOf(S.user)}`) : null,
+      h("button", { type: "button", class: "btn ghost block", onclick: signOut }, "Sign out"))));
+  dlg.addEventListener("close", () => dlg.remove());
+  dlg.addEventListener("click", (e) => { if (e.target === dlg) close(); });
+  document.body.append(dlg);
+  dlg.showModal();
+}
+
+/* Join a list with a Pack Code */
+function openJoinSheet(prefill = "", errMsg = "") {
+  const input = codeInput("j-code");
+  input.value = cleanCode(prefill).slice(0, CODE_LENGTH);
+  const msg = h("div", { class: "notice", role: "alert", hidden: !errMsg, style: "margin:14px 0 0" }, errMsg);
+  const btn = h("button", { type: "button", class: "btn", onclick: join }, "Join list");
+  async function join() {
+    const code = cleanCode(input.value);
+    if (code.length !== CODE_LENGTH) { input.classList.add("invalid"); input.focus(); return; }
+    btn.disabled = true; btn.textContent = "Joining…";
+    try {
+      const id = await S.store.joinByCode(code);
+      s.close(); toast("You're on the list");
+      location.hash = `#/trip/${id}`;
+    } catch (e) {
+      console.error(e);
+      btn.disabled = false; btn.textContent = "Join list";
+      msg.hidden = false;
+      msg.textContent = e.code === "code-not-found" ? `No list uses the code ${code}. Check it and try again.`
+        : e.code === "unavailable" ? "Can't reach the internet. Check your connection and try again."
+        : `Couldn't join (${e.code || e.message}). Try again.`;
+    }
+  }
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); join(); } });
+  const s = openSheet("Join with a Pack Code", [
+    h("p", null, "Ask whoever made the list for its 6-character Pack Code."),
+    h("div", { class: "field" }, input), msg
+  ], [h("button", { type: "button", class: "btn ghost", onclick: () => s.close() }, "Cancel"), btn]);
+  setTimeout(() => input.focus(), 60);
 }
 
 /* ── Trip screen ───────────────────────────────────────────── */
@@ -623,7 +848,8 @@ function buildShell() {
   };
   put($app, 
     h("div", { class: "topbar" },
-      h("a", { class: "back", href: "#/", html: ICON.back + "<span>Trips</span>" }),
+      menuBtn(),
+      h("a", { class: "back", href: "#/", html: ICON.back + "<span>Lists</span>" }),
       slots.status,
       h("button", { type: "button", class: "icon-btn", "aria-label": "Share this list", onclick: shareTrip, html: ICON.share }),
       h("button", { type: "button", class: "icon-btn", "aria-label": "Trip settings", onclick: openTripSheet, html: ICON.sliders }),
@@ -660,7 +886,10 @@ function renderTrip() {
       h("div", { class: "bar", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": String(total), "aria-valuenow": String(done), "aria-label": "Packing progress" },
         h("i", { style: `width:${pct * 100}%` })))));
 
-  put(slots.notes, t.notes ? h("p", { class: "trip-notes" }, t.notes) : "");
+  put(slots.notes, t.notes ? h("p", { class: "trip-notes" }, t.notes) : "",
+    t.code ? h("div", { class: "code-chip" }, "Pack Code", h("b", null, t.code),
+      h("button", { type: "button", "aria-label": `Copy Pack Code ${t.code}`, onclick: () => copyCode(t.code) }, "Copy"),
+      h("button", { type: "button", "aria-label": "Share this list", onclick: shareTrip }, "Share")) : "");
 
   // First-run hint
   const needsNames = (t.travelers || []).some((x) => PLACEHOLDER_NAMES.has(x.name)) && !lsGet("tagalong-hint-" + t.id);
@@ -954,6 +1183,11 @@ function openTripSheet() {
     s.close(); toast("Trip saved");
   }
   const s = openSheet("Trip settings", [
+    t.code ? h("div", { class: "field" }, h("span", { class: "label" }, "Pack Code"),
+      h("p", { class: "help" }, `Anyone with this code can join the list. ${plural((t.members || []).length, "person", "people")} on it now.`),
+      h("div", { class: "code-chip", style: "margin:0" }, h("b", null, t.code),
+        h("button", { type: "button", onclick: () => copyCode(t.code) }, "Copy"),
+        h("button", { type: "button", onclick: shareTrip }, "Share"))) : null,
     field("Going to", to, null, "s-to"),
     field("Leaving from", from, null, "s-from"),
     h("div", { class: "row2" }, field("Leave", start, null, "s-start"), field("Return", end, null, "s-end")),
@@ -968,11 +1202,18 @@ function openTripSheet() {
         write(S.store.bulk(t.id, S.items.filter((i) => i.packed && Object.keys(i.packed).length).map((i) => ({ id: i.id, patch: { packed: {} } }))));
         S.lastPct = 0; toast("Everything is unchecked");
       } }, "Uncheck everything"),
+      (t.members || []).length > 1 ? h("button", { type: "button", class: "btn ghost", onclick: async () => {
+        s.close();
+        if (!(await askConfirm("Leave this list?", `${t.to} will disappear from your lists. Everyone else keeps it. You can rejoin later with the Pack Code ${t.code || ""}.`, "Leave list", true))) return;
+        location.hash = "#/";
+        write(S.store.leaveTrip(t.id)); toast("You left the list");
+      } }, "Leave this list") : null,
       h("button", { type: "button", class: "btn ghost", style: "color:var(--danger)", onclick: async () => {
         s.close();
-        if (!(await askConfirm("Delete this trip?", `${t.to} and all ${S.items.length} items will be deleted for everyone. This can't be undone.`, "Delete trip", true))) return;
-        write(S.store.deleteTrip(t.id)); location.hash = "#/"; toast("Trip deleted");
-      } }, "Delete trip"))
+        if (!(await askConfirm("Delete this list?", `${t.to} and all ${S.items.length} items will be deleted for everyone. This can't be undone.`, "Delete list", true))) return;
+        location.hash = "#/";
+        write(S.store.deleteTrip(t.id, t.code)); toast("List deleted");
+      } }, "Delete list"))
   ], [
     h("button", { type: "button", class: "btn ghost", onclick: () => s.close() }, "Cancel"),
     h("button", { type: "button", class: "btn", onclick: save }, "Save trip")
@@ -1023,40 +1264,54 @@ function openCategorySheet() {
 function openNewTripSheet() {
   const last = [...S.trips].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
   const travelers = ((last && last.travelers) || DEFAULT_TRAVELERS).map((x) => ({ ...x }));
-  const to = h("input", { id: "n-to", maxlength: "60", placeholder: "Where are you going?" });
-  const from = h("input", { id: "n-from", maxlength: "60", value: (last && last.from) || "" });
-  const start = h("input", { id: "n-start", type: "date" });
-  const end = h("input", { id: "n-end", type: "date" });
+  const cali = caliOffered();
+  const to = h("input", { id: "n-to", maxlength: "60", placeholder: "Where are you going?", value: cali ? CALI.to : "" });
+  const from = h("input", { id: "n-from", maxlength: "60", value: cali ? CALI.from : (last && last.from) || "" });
+  const start = h("input", { id: "n-start", type: "date", value: cali ? CALI.start : "" });
+  const end = h("input", { id: "n-end", type: "date", value: cali ? CALI.end : "" });
   const templateRows = SEED.filter(([c]) => !CATEGORIES.find((x) => x.id === c).tripOnly);
-  const radio = (v, title, sub, checked) => h("label", { class: "choice" }, h("input", { type: "radio", name: "tpl", value: v, checked }), h("div", null, h("b", null, title), h("span", null, sub)));
+  const radio = (v, title, sub, checked) => h("label", { class: "choice" }, h("input", { type: "radio", name: "tpl", value: v, checked, onchange: () => {
+    if (v === "cali") { to.value = CALI.to; from.value = CALI.from; start.value = CALI.start; end.value = CALI.end; }
+    else if (to.value === CALI.to && start.value === CALI.start) { to.value = ""; start.value = ""; end.value = ""; }
+  } }), h("div", null, h("b", null, title), h("span", null, sub)));
   const choices = h("div", null,
-    radio("family", "Family essentials", "Clothes, toiletries, carry-on and more, sized for each person. Edit anything after.", true),
+    cali ? radio("cali", "Our California trip list", "Everything from your Thanksgiving list: Disney day, car seats, strollers and more.", true) : null,
+    radio("family", "Family essentials", "Clothes, toiletries, carry-on and more, sized for each person. Edit anything after.", !cali),
     radio("blank", "Start empty", "Build the list yourself.", false));
-  function create() {
+  const btn = h("button", { type: "button", class: "btn", onclick: create }, "Create list");
+  async function create() {
     const dest = to.value.trim();
     if (!dest) { to.classList.add("invalid"); to.focus(); return; }
     const list = travelers.map((x) => ({ ...x, name: x.name.trim() || "Traveler" }));
     const tpl = choices.querySelector("input:checked").value;
-    const items = tpl === "family" ? buildItems(templateRows, list, false) : [];
-    const used = new Set(items.map(([, it]) => it.cat));
-    const categories = tpl === "family" ? cleanCats(CATEGORIES.filter((c) => used.has(c.id)))
-      : [{ id: "c_clothes", name: "Clothes", icon: "👕" }, { id: "c_toilet", name: "Toiletries", icon: "🪥" }, { id: "c_carry", name: "Carry-on", icon: "🎒" }];
-    const id = (dest.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 30) || "trip") + "-" + Math.random().toString(36).slice(2, 6);
-    write(S.store.createTrip(id, { to: dest, from: from.value.trim(), start: start.value, end: end.value || start.value, notes: "", travelers: list, categories, bags: BAGS, createdAt: Date.now() }, items));
-    s.close();
-    location.hash = `#/trip/${id}`;
+    let items, categories, notes = "";
+    if (tpl === "cali") { items = buildItems(SEED, list, true); categories = cleanCats(CATEGORIES); notes = CALI.notes; }
+    else if (tpl === "family") { items = buildItems(templateRows, list, false); const used = new Set(items.map(([, it]) => it.cat)); categories = cleanCats(CATEGORIES.filter((c) => used.has(c.id))); }
+    else { items = []; categories = [{ id: "c_clothes", name: "Clothes", icon: "👕" }, { id: "c_toilet", name: "Toiletries", icon: "🪥" }, { id: "c_carry", name: "Carry-on", icon: "🎒" }]; }
+    const id = newListId();
+    btn.disabled = true; btn.textContent = "Creating…";
+    try {
+      const code = await S.store.createTrip(id, { to: dest, from: from.value.trim(), start: start.value, end: end.value || start.value, notes, travelers: list, categories, bags: BAGS, createdAt: Date.now() }, items);
+      s.close();
+      location.hash = `#/trip/${id}`;
+      toast(`List created. Its Pack Code is ${code}`);
+    } catch (e) {
+      console.error(e);
+      btn.disabled = false; btn.textContent = "Create list";
+      toast(e.code === "unavailable" ? "Can't reach the internet. Try again when you're connected." : `Couldn't create the list (${e.code || e.message}).`);
+    }
   }
-  const s = openSheet("Plan a new trip", [
+  const s = openSheet("Start a new list", [
+    h("div", { class: "field" }, h("span", { class: "label" }, "Start with"), choices),
     field("Going to", to, null, "n-to"),
     field("Leaving from", from, null, "n-from"),
     h("div", { class: "row2" }, field("Leave", start, null, "n-start"), field("Return", end, null, "n-end")),
-    h("div", { class: "field" }, h("span", { class: "label" }, "Who's going"), travelerEditor(travelers)),
-    h("div", { class: "field" }, h("span", { class: "label" }, "Start with"), choices)
+    h("div", { class: "field" }, h("span", { class: "label" }, "Who's going"), travelerEditor(travelers))
   ], [
     h("button", { type: "button", class: "btn ghost", onclick: () => s.close() }, "Cancel"),
-    h("button", { type: "button", class: "btn", onclick: create }, "Create trip")
+    btn
   ]);
-  setTimeout(() => to.focus(), 60);
+  if (!cali) setTimeout(() => to.focus(), 60);
 }
 
 /* Who's packing on this phone */
@@ -1073,7 +1328,10 @@ function openMeSheet() {
   const s = openSheet("Who's packing on this phone?", [
     h("p", null, "Your name shows on the things you pack, so everyone knows what's already in a bag."),
     adults.length ? h("div", { class: "name-pick" }, adults.map((n) => h("button", { type: "button", class: "btn ghost small", onclick: () => set(n) }, n))) : null,
-    field(adults.length ? "Or type your name" : "Your name", input, null, "me-name")
+    field(adults.length ? "Or type your name" : "Your name", input, null, "me-name"),
+    S.user ? h("div", null, h("hr", { class: "divider" }),
+      h("p", { class: "help", style: "color:var(--muted);margin:0" }, `Signed in as ${usernameOf(S.user)}`),
+      h("button", { type: "button", class: "btn ghost block", onclick: signOut }, "Sign out")) : null
   ], [h("button", { type: "button", class: "btn", onclick: () => set(input.value) }, "Save name")]);
 }
 function buildShellAndRender() {
@@ -1081,13 +1339,18 @@ function buildShellAndRender() {
 }
 
 /* Share */
+async function copyCode(code) {
+  try { await navigator.clipboard.writeText(code); toast(`Copied ${code}`); }
+  catch (e) { toast(`The Pack Code is ${code}`); }
+}
 async function shareTrip() {
-  if (S.store.mode === "local") { toast("Add your Firebase settings first so your family sees the same list."); return; }
-  const url = location.href, title = `${S.trip ? S.trip.to : "Trip"} packing list`;
+  const t = S.trip; if (!t) return;
+  const url = location.origin + location.pathname;
+  const text = `Join our "${t.to}" packing list on Tagalong. Open ${url}, create an account, and enter Pack Code ${t.code}`;
   try {
-    if (navigator.share) { await navigator.share({ title, url }); return; }
-    await navigator.clipboard.writeText(url); toast("Link copied");
-  } catch (e) { if (e.name !== "AbortError") toast("Copy the link from the address bar to share it."); }
+    if (navigator.share) { await navigator.share({ title: `${t.to} packing list`, text }); return; }
+    await navigator.clipboard.writeText(text); toast("Invite copied. Paste it into a text.");
+  } catch (e) { if (e.name !== "AbortError") toast(`Share this Pack Code: ${t.code}`); }
 }
 
 /* Finished-list celebration */
@@ -1115,20 +1378,34 @@ function celebrate() {
 
 /* ── Start ─────────────────────────────────────────────────── */
 async function main() {
-  const configured = FIREBASE_CONFIG && FIREBASE_CONFIG.apiKey && !/^(YOUR|…)/.test(FIREBASE_CONFIG.apiKey);
-  if (configured) {
-    try { S.store = await FirebaseStore(FIREBASE_CONFIG); }
-    catch (e) { console.error(e); S.store = LocalStore(); toast("Couldn't reach Firebase, so this phone is saving on its own for now."); }
-  } else S.store = LocalStore();
+  try { S.fb = await connectFirebase(FIREBASE_CONFIG); }
+  catch (e) {
+    console.error(e);
+    put($app, h("div", { class: "empty" }, h("span", { class: "em" }, "📡"), h("b", null, "Can't reach the internet"), "Tagalong needs a connection the first time you sign in. Check your signal, then reload."));
+    return;
+  }
+  // Wait for Firebase to say whether this phone is already signed in
+  const user = await new Promise((resolve) => { const stop = S.fb.authMod.onAuthStateChanged(S.fb.auth, (u) => { stop(); resolve(u); }); });
+  if (!user) { renderSignIn(); return; }
+  S.user = user;
+  if (!S.me) { S.me = user.displayName || niceName(usernameOf(user)); lsSet("tagalong-me", S.me); }
+  S.store = await FirebaseStore(S.fb.app, user.uid);
 
-  S.store.watchTrips((trips, meta) => {
-    S.trips = trips; S.tripsReady = true;
-    const seededKey = "tagalong-seeded-" + S.store.mode;
-    if (!trips.length && !(meta && meta.fromCache) && !lsGet(seededKey)) { lsSet(seededKey, "1"); seedFirstTrip(); }
-    renderHome();
-  }, onErr);
+  S.store.watchTrips((trips) => { S.trips = trips; S.tripsReady = true; renderHome(); }, onErr);
   window.addEventListener("hashchange", route);
+
+  // Right after creating an account: start a list or join one
+  let after = null;
+  try { after = JSON.parse(sessionStorage.getItem("tagalong-after") || "null"); sessionStorage.removeItem("tagalong-after"); } catch (e) {}
+  if (after && after.action === "join") {
+    location.hash = "#/";
+    route();
+    try { const id = await S.store.joinByCode(after.code); location.hash = `#/trip/${id}`; toast("Welcome! You're on the list"); }
+    catch (e) { console.error(e); openJoinSheet(after.code, e.code === "code-not-found" ? `No list uses the code ${after.code}. Check it and try again.` : `Couldn't join (${e.code || e.message}). Try again.`); }
+    return;
+  }
   route();
+  if (after && after.action === "new") openNewTripSheet();
 }
 main();
 </script>
